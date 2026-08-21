@@ -8,7 +8,9 @@
  * The monitor also tracks running→idle transitions: a session that finished
  * while the user watched (so the product's background-completion reminder was
  * never armed) stays shown green for the done-visibility window, then fades
- * back to the default favicon when nothing else indicates.
+ * back to the default favicon when nothing else indicates. The window is a
+ * background reminder only: returning to the page clears it immediately, and
+ * while any session runs the live activity owns the tab (blue, spinning).
  */
 import type { ObservableSnapshot, SessionListState } from '@deepseek-ai/dsh-client-runtime/client';
 import type { FaviconRenderer } from './favicon.ts';

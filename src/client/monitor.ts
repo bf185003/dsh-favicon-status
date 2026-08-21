@@ -8,7 +8,9 @@
  * The monitor also tracks running→idle transitions: a session that finished
  * while the user watched (so the product's background-completion reminder was
  * never armed) stays shown green for the done-visibility window, then fades
- * back to the default favicon when nothing else indicates.
+ * back to the default favicon when nothing else indicates. The window is a
+ * background reminder only: returning to the page clears it immediately, and
+ * while any session runs the live activity owns the tab (blue, spinning).
  */
 import type { ObservableSnapshot, SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
@@ -148,7 +150,10 @@ export function createTabStatusMonitor(
     for (const [id, until] of doneUntil) {
       if (until <= now) doneUntil.delete(id)
     }
-    const recentlyDone = doneUntil.size > 0 ? new Set(doneUntil.keys()) : undefined
+    // The done window is a background reminder: while any session runs the
+    // live activity owns the tab (blue, spinning), so the window does not
+    // participate in the counts until every session is quiet again.
+    const recentlyDone = doneUntil.size > 0 && runningIds.size === 0 ? new Set(doneUntil.keys()) : undefined
     counts = aggregateTabCounts(byId, recentlyDone)
     if (isEmptyTabCounts(counts)) {
       restore()
@@ -165,6 +170,15 @@ export function createTabStatusMonitor(
   }
 
   const unsubscribe = list.subscribe(evaluate)
+  // The done window is a background reminder: returning to the page (tab
+  // visible) means the user sees the UI itself, so the green reminder clears
+  // immediately instead of outliving its window.
+  const onVisibilityChange = (): void => {
+    if (doc.visibilityState !== 'visible') return
+    doneUntil.clear()
+    evaluate()
+  }
+  doc.addEventListener('visibilitychange', onVisibilityChange)
   evaluate()
   // Load the document's original favicon graphic (the whale) into the ring's
   // hole; a missing or failed icon leaves the ring hollow. The document's own
@@ -184,6 +198,7 @@ export function createTabStatusMonitor(
     dispose() {
       disposed = true
       unsubscribe()
+      doc.removeEventListener('visibilitychange', onVisibilityChange)
       restore()
     },
   }

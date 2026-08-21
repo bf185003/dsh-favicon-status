@@ -137,7 +137,7 @@ describe('createTabStatusMonitor', () => {
   it('shows a just-finished session green for the done window, then restores', () => {
     vi.useFakeTimers()
     const { link, list, calls } = bench({ a: row('a', { running: true }) })
-    // Running 鈫?idle is a completion: green now, even without the product's
+    // Running → idle is a completion: green now, even without the product's
     // background-completion reminder (the user was watching).
     list.set({ a: row('a') })
     expect(link.getAttribute('href')).toMatch(/^data:image\/png/)
@@ -175,6 +175,47 @@ describe('createTabStatusMonitor', () => {
     expect(calls[calls.length - 1]!.counts).toEqual({ running: 0, pending: 0, done: 1 })
     vi.advanceTimersByTime(10_100)
     expect(link.getAttribute('href')).toBe('/favicon.svg')
+  })
+
+  it('clears the done window when the page becomes visible again', () => {
+    vi.useFakeTimers()
+    const { link, list, calls } = bench({ a: row('a', { running: true }) })
+    list.set({ a: row('a') })
+    expect(link.getAttribute('href')).toMatch(/^data:image\/png/)
+    // Returning to the dsh page: the green reminder is a background hint, so
+    // visibility clears it at once instead of waiting out the window.
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(link.getAttribute('href')).toBe('/favicon.svg')
+    const settled = calls.length
+    vi.advanceTimersByTime(500)
+    expect(calls).toHaveLength(settled)
+  })
+
+  it('hides the done window while any session runs (live activity owns the tab)', () => {
+    vi.useFakeTimers()
+    const { link, list, calls } = bench({ a: row('a', { running: true }) })
+    // A finishes; the done window opens.
+    list.set({ a: row('a') })
+    expect(calls[calls.length - 1]!.counts).toEqual({ running: 0, pending: 0, done: 1 })
+    // B starts running inside the window: the counts drop the reminder and the
+    // ring spins blue again instead of staying green.
+    list.set({ a: row('a'), b: row('b', { running: true }) })
+    expect(calls[calls.length - 1]!.counts).toEqual({ running: 1, pending: 0, done: 0 })
+    const first = calls[calls.length - 1]!.rotation
+    vi.advanceTimersByTime(250)
+    expect(calls[calls.length - 1]!.rotation).not.toBe(first)
+    expect(link.getAttribute('href')).toMatch(/^data:image\/png/)
+  })
+
+  it('removes the visibility listener on dispose', () => {
+    const { monitor, list, calls } = bench({ a: row('a', { running: true }) })
+    list.set({ a: row('a') })
+    monitor.dispose()
+    const settled = calls.length
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(calls).toHaveLength(settled)
   })
 
   it('loads the original favicon as the ring center and repaints on load', () => {

@@ -1,6 +1,6 @@
 /**
  * Browser tab status indicator: paints the document favicon from the sessions
- * list projection 鈥?green done / amber waiting-on-user / blue running 鈥?so a
+ * list projection — green done / amber waiting-on-user / blue running — so a
  * backgrounded dsh web tab still shows whether work finished, waits on the
  * user, or is executing. The segmented ring spins clockwise while any session
  * runs; with mixed states the ring splits proportionally (one finished and
@@ -22,7 +22,7 @@ export interface Config {
     colors: {
         /** Session actively executing (default the ongoing deepseek blue). */
         running: string;
-        /** Session waiting on the user 鈥?approval / plan review / question (default amber). */
+        /** Session waiting on the user — approval / plan review / question (default amber). */
         pending: string;
         /** Session finished in the background (default green). */
         done: string;

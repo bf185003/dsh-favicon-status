@@ -1,6 +1,6 @@
 /**
  * ui-favicon-status favicon painting: wedge geometry, the annulus-sector paint
- * calls, and the canvas renderer's data-URL encoding (canvas stubbed 鈥?jsdom
+ * calls, and the canvas renderer's data-URL encoding (canvas stubbed — jsdom
  * provides no 2D context).
  */
 // @vitest-environment jsdom
