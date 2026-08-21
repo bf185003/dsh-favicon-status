@@ -48,6 +48,7 @@
     "@deepseek-ai/cordis": "^4.0.1"
   },
   "files": [
+    "cordis.patch.yml",
     "lib/index.js",
     "lib/invariant.js",
     "lib/client.js",
