@@ -1,0 +1,9 @@
+# dsh-favicon-status bundle for DeepSeek Harness (dsh).
+# Inserted into the profile's composition when this bundle is installed
+# (`dsh plugin --profile web add git+https://github.com/bf185003/dsh-favicon-status.git`).
+# The plugin row resolves the package by name through the profile's node_modules;
+# the node half exists only for the Loader tree, the dshClient half registers
+# the browser favicon renderer via the fence-registry extension point.
+- insert:
+    - id: ui-favicon-status
+      name: '@deepseek-ai/dsh-client-ui-favicon-status'

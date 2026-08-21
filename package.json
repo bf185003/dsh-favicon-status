@@ -28,6 +28,9 @@
         "@deepseek-ai/dsh-client-runtime"
       ],
       "platform": "web"
+    },
+    "bundle": {
+      "patch": "cordis.patch.yml"
     }
   },
   "dependencies": {
