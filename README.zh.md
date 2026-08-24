@@ -1,4 +1,4 @@
-# @deepseek-ai/dsh-client-ui-favicon-status
+# dsh-favicon-status
 
 [English](README.md) | 中文
 
@@ -28,7 +28,7 @@ favicon 会变成一段分段圆环，各状态色块按会话数量比例分配
 
 ## 开发
 
-源码位于 [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) monorepo 的 `packages/client/ui-favicon-status`；本仓库发布的是在那里构建好的包，因此 `lib/` 内含构建产物与浏览器 bundle。重建时在 monorepo 中运行 `pnpm --filter @deepseek-ai/dsh-client-ui-favicon-status run bundle`，并把生成的 `lib/` 同步回这里。
+这是一个独立的社区插件：从本仓库开发与发布，**不属于**官方 [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) monorepo。其 UI 语言沿用 dsh web 界面的标准状态语义（侧边栏 StateDot 调色板）——这是有意参考官方观感，而非官方代码。`lib/` 内含构建产物与浏览器 bundle；本地用 `pnpm install && pnpm test` 运行单元测试。
 
 ## Model Experience
 

@@ -1,4 +1,4 @@
-# @deepseek-ai/dsh-client-ui-favicon-status
+# dsh-favicon-status
 
 English | [中文](README.zh.md)
 
@@ -28,7 +28,7 @@ Colors, the spin period, and the done-visibility window are validated [Config](s
 
 ## Development
 
-The source lives in the [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) monorepo at `packages/client/ui-favicon-status`; this repository publishes the package as built there, so `lib/` contains the build artifacts and the browser bundle. To rebuild, run the monorepo's `pnpm --filter @deepseek-ai/dsh-client-ui-favicon-status run bundle` and sync the resulting `lib/` here.
+This is an independent community plugin: it is developed and published from this repository and is **not** part of the official [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) monorepo. Its UI language follows the dsh web GUI's canonical state semantics (the sidebar StateDot palette), which is a deliberate reference to the official look — not official code. `lib/` contains the build artifacts and the browser bundle; `pnpm install && pnpm test` runs the unit suite locally.
 
 ## Model Experience
 
