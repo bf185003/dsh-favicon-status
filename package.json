@@ -1,5 +1,5 @@
 {
-  "name": "@deepseek-ai/dsh-client-ui-favicon-status",
+  "name": "dsh-favicon-status",
   "description": "Browser tab status indicator: paints the document favicon from the sessions list projection (green done / amber waiting / blue running, spinning while work executes) so a backgrounded dsh web tab still shows task state",
   "version": "0.1.0-rc.5",
   "license": "MIT",

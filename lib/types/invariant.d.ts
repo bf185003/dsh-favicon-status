@@ -1,6 +1,6 @@
 /**
- * Package-owned invariant companion for `@deepseek-ai/dsh-client-ui-favicon-status`.
- * @module @deepseek-ai/dsh-client-ui-favicon-status/invariant
+ * Package-owned invariant companion for `dsh-favicon-status`.
+ * @module dsh-favicon-status/invariant
  */
 import type { Context } from '@deepseek-ai/cordis';
 /** Cordis companion plugin name. */
