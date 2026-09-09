@@ -12,7 +12,8 @@
  * background reminder only: returning to the page clears it immediately, and
  * while any session runs the live activity owns the tab (blue, spinning).
  */
-import type { ObservableSnapshot, SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import type { FaviconRenderer } from './favicon.ts'
 import type { TabCounts } from './status.ts'
@@ -45,12 +46,18 @@ function faviconLink(doc: Document): HTMLLinkElement | null {
   return doc.querySelector<HTMLLinkElement>('link[rel~="icon"]')
 }
 
+/** Sessions with an effective pending interaction, keyed by id. */
+export type PendingInteractionIds = ReadonlySet<string>
+
 /**
- * Create the tab-status monitor over one sessions list source. The monitor
- * subscribes itself: list changes repaint immediately, and dispose tears the
- * subscription down with the favicon restore.
+ * Create the tab-status monitor over one sessions list source and the pending
+ * interaction snapshot. The monitor subscribes itself: either source changing
+ * repaints immediately, and dispose tears both subscriptions down with the
+ * favicon restore.
  * @param doc - document whose favicon link is swapped.
  * @param list - the sessions list projection (ctx.sessions.list).
+ * @param pendingInteractions - the ui-session pending-interaction snapshot
+ * (`ReadonlyMap<SessionId, …>`); its keys are the sessions waiting on the user.
  * @param renderer - frame painter (canvas-based in the browser, fake in specs).
  * @param options - spin/tick tuning.
  * @returns the monitor handle.
@@ -58,6 +65,7 @@ function faviconLink(doc: Document): HTMLLinkElement | null {
 export function createTabStatusMonitor(
   doc: Document,
   list: ObservableSnapshot<SessionListState>,
+  pendingInteractions: ObservableSnapshot<ReadonlyMap<SessionId, unknown>>,
   renderer: FaviconRenderer,
   options: TabStatusOptions = {},
 ): TabStatusMonitor {
@@ -127,6 +135,7 @@ export function createTabStatusMonitor(
    */
   const evaluate = (): void => {
     const byId = list.getSnapshot().byId
+    const pendingIds = new Set(pendingInteractions.getSnapshot().keys())
     const now = Date.now()
     // Mark sessions that just stopped running: shown green briefly even when
     // the product's background-completion reminder was never armed (the user
@@ -142,7 +151,7 @@ export function createTabStatusMonitor(
     for (const id of previousRunning) {
       if (runningIds.has(id)) continue
       const summary: SessionSummary | undefined = byId[id]
-      if (summary !== undefined && !summary.pendingInteraction) {
+      if (summary !== undefined && !pendingIds.has(id)) {
         doneUntil.set(id, now + doneVisibleMs)
       }
     }
@@ -154,7 +163,7 @@ export function createTabStatusMonitor(
     // live activity owns the tab (blue, spinning), so the window does not
     // participate in the counts until every session is quiet again.
     const recentlyDone = doneUntil.size > 0 && runningIds.size === 0 ? new Set(doneUntil.keys()) : undefined
-    counts = aggregateTabCounts(byId, recentlyDone)
+    counts = aggregateTabCounts(byId, pendingIds, recentlyDone)
     if (isEmptyTabCounts(counts)) {
       restore()
       return
@@ -169,7 +178,8 @@ export function createTabStatusMonitor(
     timer = window.setInterval(evaluate, tickMs)
   }
 
-  const unsubscribe = list.subscribe(evaluate)
+  const unsubscribeList = list.subscribe(evaluate)
+  const unsubscribePending = pendingInteractions.subscribe(evaluate)
   // The done window is a background reminder: returning to the page (tab
   // visible) means the user sees the UI itself, so the green reminder clears
   // immediately instead of outliving its window.
@@ -197,7 +207,8 @@ export function createTabStatusMonitor(
     sync: evaluate,
     dispose() {
       disposed = true
-      unsubscribe()
+      unsubscribeList()
+      unsubscribePending()
       doc.removeEventListener('visibilitychange', onVisibilityChange)
       restore()
     },

@@ -4,7 +4,7 @@
  * precedence mirrors the sidebar's status dots (pending interaction > running
  * > completed reminder), so the tab never disagrees with the in-UI state.
  */
-import type { SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 
 /** One session's tab-indicator state. */
 export type TabSessionState = 'running' | 'pending' | 'done' | 'idle'
@@ -27,16 +27,19 @@ export const EMPTY_TAB_COUNTS: TabCounts = { running: 0, pending: 0, done: 0 }
  * which outranks the done reminders; everything else is idle (unprompted,
  * open-but-quiet, or a session the user is watching).
  * @param summary - the sessions list row.
+ * @param hasPendingInteraction - the session has an effective pending
+ * interaction (approval, plan review, or question) in the ui-session snapshot.
  * @param recentlyDone - monitor-tracked running→idle transition still within
  * its visibility window: shown green even when the background-completion
  * reminder is not armed (the user was watching, so the product never armed it).
  * @returns the derived tab state.
  */
 export function sessionTabState(
-  summary: Pick<SessionSummary, 'running' | 'pendingInteraction' | 'completed'>,
+  summary: Pick<SessionSummary, 'running' | 'completed'>,
+  hasPendingInteraction = false,
   recentlyDone = false,
 ): TabSessionState {
-  if (summary.pendingInteraction !== undefined) return 'pending'
+  if (hasPendingInteraction) return 'pending'
   if (summary.running) return 'running'
   if (summary.completed === true || recentlyDone) return 'done'
   return 'idle'
@@ -45,17 +48,19 @@ export function sessionTabState(
 /**
  * Aggregate every listed session into tab counts; idle sessions do not count.
  * @param byId - the sessions list projection's id-to-row map.
+ * @param pendingIds - sessions with an effective pending interaction.
  * @param recentlyDone - ids of sessions whose running→idle transition is
  * still within the monitor's visibility window (shown green).
  * @returns per-state counts (never partial: a fresh object per call).
  */
 export function aggregateTabCounts(
   byId: Readonly<Record<string, SessionSummary>>,
+  pendingIds?: ReadonlySet<string>,
   recentlyDone?: ReadonlySet<string>,
 ): TabCounts {
   const counts: TabCounts = { running: 0, pending: 0, done: 0 }
   for (const summary of Object.values(byId)) {
-    switch (sessionTabState(summary, recentlyDone?.has(summary.id) === true)) {
+    switch (sessionTabState(summary, pendingIds?.has(summary.id) === true, recentlyDone?.has(summary.id) === true)) {
       case 'running': counts.running += 1; break
       case 'pending': counts.pending += 1; break
       case 'done': counts.done += 1; break

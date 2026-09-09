@@ -11,7 +11,9 @@
  * done) and are overridable through Config, as is the spin period.
  */
 import z from '@deepseek-ai/schemastery'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { createCanvasRenderer, type FaviconPalette } from './favicon.ts'
 import { createTabStatusMonitor } from './monitor.ts'
 
@@ -45,8 +47,8 @@ export const Config: z<Config> = z.object({
   }).default(DEFAULT_PALETTE),
 })
 
-/** Required services: the sessions list projection. */
-export const inject = ['sessions']
+/** Required services: the sessions list projection and the pending-interaction snapshot. */
+export const inject = ['sessions', 'uiSession']
 
 /**
  * Client plugin body: mount the favicon monitor over the sessions list.
@@ -61,10 +63,16 @@ export function apply(ctx: ClientContext, config: Config): void {
   }
   ctx.effect(() => {
     const renderer = createCanvasRenderer(document, palette)
-    const monitor = createTabStatusMonitor(document, ctx.sessions.list, renderer, {
-      spinMs: config.spinMs,
-      doneVisibleMs: config.doneVisibleMs,
-    })
+    const monitor = createTabStatusMonitor(
+      document,
+      ctx.sessions.list,
+      ctx.uiSession.pendingInteractions,
+      renderer,
+      {
+        spinMs: config.spinMs,
+        doneVisibleMs: config.doneVisibleMs,
+      },
+    )
     return () => { monitor.dispose() }
   }, 'ui-favicon-status: session favicon')
 }

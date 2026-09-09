@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
-import type { SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import {
   aggregateTabCounts, EMPTY_TAB_COUNTS, isEmptyTabCounts, sessionTabState,
 } from '../src/client/status.ts'
@@ -24,9 +24,8 @@ function row(over: Partial<SessionSummary> = {}): SessionSummary {
 
 describe('sessionTabState', () => {
   it('ranks a pending interaction above live activity', () => {
-    expect(sessionTabState({ running: true, pendingInteraction: 'approval', completed: false })).toBe('pending')
-    expect(sessionTabState({ running: false, pendingInteraction: 'question', completed: true })).toBe('pending')
-    expect(sessionTabState({ running: true, pendingInteraction: 'plan-review', completed: false })).toBe('pending')
+    expect(sessionTabState({ running: true, completed: false }, true)).toBe('pending')
+    expect(sessionTabState({ running: false, completed: true }, true)).toBe('pending')
   })
 
   it('ranks running above the completed reminder', () => {
@@ -40,22 +39,25 @@ describe('sessionTabState', () => {
   })
 
   it('treats a recently-done session as done but below live states', () => {
-    expect(sessionTabState({ running: false }, true)).toBe('done')
-    expect(sessionTabState({ running: true }, true)).toBe('running')
-    expect(sessionTabState({ running: false, pendingInteraction: 'approval' }, true)).toBe('pending')
-    expect(sessionTabState({ running: false }, false)).toBe('idle')
+    expect(sessionTabState({ running: false }, false, true)).toBe('done')
+    expect(sessionTabState({ running: true }, false, true)).toBe('running')
+    expect(sessionTabState({ running: false }, true, true)).toBe('pending')
+    expect(sessionTabState({ running: false }, false, false)).toBe('idle')
   })
 })
 
 describe('aggregateTabCounts', () => {
   it('counts each non-idle state and ignores idle sessions', () => {
-    const counts = aggregateTabCounts({
-      a: row({ id: 'a' as SessionId, running: true }),
-      b: row({ id: 'b' as SessionId, pendingInteraction: 'question' }),
-      c: row({ id: 'c' as SessionId, completed: true }),
-      d: row({ id: 'd' as SessionId }),
-      e: row({ id: 'e' as SessionId, running: true }),
-    })
+    const counts = aggregateTabCounts(
+      {
+        a: row({ id: 'a' as SessionId, running: true }),
+        b: row({ id: 'b' as SessionId }),
+        c: row({ id: 'c' as SessionId, completed: true }),
+        d: row({ id: 'd' as SessionId }),
+        e: row({ id: 'e' as SessionId, running: true }),
+      },
+      new Set(['b' as SessionId]),
+    )
     expect(counts).toEqual({ running: 2, pending: 1, done: 1 })
   })
 
@@ -69,7 +71,7 @@ describe('aggregateTabCounts', () => {
     const counts = aggregateTabCounts({
       a: row({ id: 'a' as SessionId }),
       b: row({ id: 'b' as SessionId }),
-    }, recentlyDone)
+    }, undefined, recentlyDone)
     expect(counts).toEqual({ running: 0, pending: 0, done: 1 })
   })
 

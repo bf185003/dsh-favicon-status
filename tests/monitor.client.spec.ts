@@ -6,7 +6,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
-import type { ObservableSnapshot, SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { FaviconRenderer } from '../src/client/favicon.ts'
 import { createTabStatusMonitor, type TabStatusMonitor } from '../src/client/monitor.ts'
 import type { TabCounts } from '../src/client/status.ts'
@@ -45,6 +46,28 @@ function makeList(initial: Record<string, SessionSummary> = {}): {
   }
 }
 
+/** Manual pending-interaction observable: set() notifies subscribers like the ui-session snapshot. */
+function makePending(initial: readonly SessionId[] = []): {
+  pending: ObservableSnapshot<ReadonlyMap<SessionId, unknown>>
+  set(ids: readonly SessionId[]): void
+} {
+  let ids_ = new Map<SessionId, unknown>(initial.map(id => [id, {}]))
+  const listeners = new Set<() => void>()
+  return {
+    pending: {
+      getSnapshot: () => ids_,
+      subscribe: (fn) => {
+        listeners.add(fn)
+        return () => { listeners.delete(fn) }
+      },
+    },
+    set(ids) {
+      ids_ = new Map(ids.map(id => [id, {}]))
+      for (const fn of listeners) fn()
+    },
+  }
+}
+
 /** Recording renderer: returns a fresh fake data URL per call and records centers. */
 function makeRenderer(): {
   renderer: FaviconRenderer
@@ -68,22 +91,26 @@ function makeRenderer(): {
   }
 }
 
-/** A monitor over a fresh list, with the document's original icon link. */
+/** A monitor over a fresh list and pending-interaction snapshot, with the document's original icon link. */
 function bench(rows: Record<string, SessionSummary> = {}): {
   monitor: TabStatusMonitor
   list: ReturnType<typeof makeList>
+  pending: ReturnType<typeof makePending>
   calls: { counts: TabCounts; rotation: number }[]
   centers: (CanvasImageSource | null)[]
   link: HTMLLinkElement
 } {
   const list = makeList(rows)
+  const pending = makePending()
   const { renderer, calls, centers } = makeRenderer()
   const link = document.createElement('link')
   link.rel = 'icon'
   link.href = '/favicon.svg'
   document.head.appendChild(link)
-  const monitor = createTabStatusMonitor(document, list.list, renderer, { spinMs: 1000, tickMs: 100, doneVisibleMs: 10_000 })
-  return { monitor, list, calls, centers, link }
+  const monitor = createTabStatusMonitor(document, list.list, pending.pending, renderer, {
+    spinMs: 1000, tickMs: 100, doneVisibleMs: 10_000,
+  })
+  return { monitor, list, pending, calls, centers, link }
 }
 
 describe('createTabStatusMonitor', () => {
@@ -114,18 +141,20 @@ describe('createTabStatusMonitor', () => {
 
   it('spins while any session runs and freezes when none does', () => {
     vi.useFakeTimers()
-    const { list, calls, monitor } = bench({ a: row('a', { running: true }) })
+    const { list, pending, calls, monitor } = bench({ a: row('a', { running: true }) })
     const first = calls[0]!.rotation
     vi.advanceTimersByTime(250)
     expect(calls.length).toBeGreaterThan(1)
     expect(calls[1]!.rotation).not.toBe(first)
     // Running stops into a pending interaction: no done window opens, the
-    // timer stops and one static amber frame (rotation 0) paints.
-    list.set({ a: row('a', { pendingInteraction: 'question' }) })
+    // timer stops and one static amber frame (rotation 0) paints. The pending
+    // snapshot changing repaints on its own, without a list update.
+    list.set({ a: row('a') })
     const count = calls.length
+    pending.set(['a' as SessionId])
+    expect(calls.length).toBeGreaterThan(count)
     vi.advanceTimersByTime(500)
-    expect(calls).toHaveLength(count)
-    expect(calls[count - 1]!.rotation).toBe(0)
+    expect(calls.at(-1)!.rotation).toBe(0)
     monitor.dispose()
   })
 
@@ -273,7 +302,7 @@ describe('createTabStatusMonitor', () => {
   it('creates its own favicon link when the document has none and removes it on dispose', () => {
     const list = makeList({ a: row('a', { running: true }) })
     const { renderer } = makeRenderer()
-    const monitor = createTabStatusMonitor(document, list.list, renderer)
+    const monitor = createTabStatusMonitor(document, list.list, makePending().pending, renderer)
     const created = document.head.querySelector('link[rel~="icon"]')
     expect(created).not.toBeNull()
     monitor.dispose()
@@ -298,7 +327,7 @@ describe('createTabStatusMonitor', () => {
     link.rel = 'icon'
     link.href = '/favicon.svg'
     document.head.appendChild(link)
-    const monitor = createTabStatusMonitor(document, list.list, renderer)
+    const monitor = createTabStatusMonitor(document, list.list, makePending().pending, renderer)
     expect(link.getAttribute('href')).toBe('/favicon.svg')
     monitor.dispose()
   })

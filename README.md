@@ -7,10 +7,10 @@ Browser tab status indicator: paints the document favicon from the sessions list
 ## Install
 
 ```sh
-dsh plugin --profile web add git+https://github.com/bf185003/dsh-favicon-status.git
+dsh plugin --profile web add dsh-favicon-status
 ```
 
-Restart `dsh web` afterwards: adding the plugin changes the profile's bundle roster, which the running server only picks up on restart. The plugin is browser-only; the node half exists solely so the plugin appears in the Loader tree.
+Restart `dsh web` afterwards: adding the plugin changes the profile's bundle roster, which the running server only picks up on restart. The plugin is browser-only; the node half exists solely so the plugin appears in the Loader tree. Requires the DSH web client at **0.1.5-alpha.1 or later** — the client half subscribes to the sessions list projection (`ctx.sessions.list`) and the effective pending-interaction snapshot (`ctx.uiSession.pendingInteractions`) of that kernel; earlier kernels shipped those under the retired `@deepseek-ai/dsh-client-runtime` package and need the previous plugin release.
 
 ## Behavior
 
@@ -41,6 +41,6 @@ None; the package never assembles or sends provider requests.
 ## Known Limitations and Deferred Work
 
 - **Background-tab throttling coarsens the spin.** Browsers throttle `setInterval` in hidden tabs (Chrome to 1 Hz, with intensive throttling to once per minute after about five minutes of chained timers), so the rotation advances in steps rather than smoothly while the tab is backgrounded; the time-based phase keeps the direction and pace correct. Browsers do not animate SVG favicons, which is why the animation is JS-driven at all.
-- **The indicator reflects the session list summary, not per-job detail.** It aggregates the same `running` / `pendingInteraction` / `completed` fields the sidebar dots use, plus a monitor-local transition window for just-finished sessions; background job rows and workflow phases are not surfaced individually.
+- **The indicator reflects the session list summary, not per-job detail.** It aggregates the sessions list rows' `running` / `completed` fields together with the effective pending interactions published by the `uiSession` service, plus a monitor-local transition window for just-finished sessions; background job rows and workflow phases are not surfaced individually.
 - **The done window is a tab-only reminder.** `doneVisibleMs` shows green after a running-to-idle transition even when the sidebar never armed its background-completion reminder (the user was watching); the sidebar itself keeps its own semantics. The window lives only while the tab stays backgrounded: becoming visible clears it, and any running session takes the tab over (blue, spinning) until it quiets.
 - **One favicon link.** The monitor swaps the document's first `rel~="icon"` link (creating one when absent) and restores it on dispose; multi-icon manifests and `apple-touch-icon` are not enumerated.

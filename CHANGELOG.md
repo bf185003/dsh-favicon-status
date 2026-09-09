@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0-rc.6 (2026-09-12)
+
+- Adapt to the current DSH kernel (0.1.5-alpha.1 client): the client half now
+  subscribes to the sessions list projection (`ctx.sessions.list`) and the
+  effective pending-interaction snapshot (`ctx.uiSession.pendingInteractions`);
+  the retired `@deepseek-ai/dsh-client-runtime` types are gone, and the session
+  summary's former `pendingInteraction` field is replaced by the ui-session
+  map. Pending-interaction changes repaint the tab without a list change.
+- Retire the invariant companion and its publication wiring: a pure-presentation
+  plugin reserves no ownership relation to observe (matches the upstream
+  package-invariant rule that rejects empty installers).
+
 ## 0.1.0-rc.5 (2026-08-21)
 
 - Publish as a standalone installable plugin: `dsh.bundle` manifest with a

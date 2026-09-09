@@ -11,7 +11,7 @@
  * done) and are overridable through Config, as is the spin period.
  */
 import z from '@deepseek-ai/schemastery';
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
+import type { Context as ClientContext } from '@deepseek-ai/cordis';
 /** Plugin config, validated by the same-named schemastery schema. */
 export interface Config {
     /** Full ring rotation period in ms while any session runs (default 1200). */
@@ -29,7 +29,7 @@ export interface Config {
     };
 }
 export declare const Config: z<Config>;
-/** Required services: the sessions list projection. */
+/** Required services: the sessions list projection and the pending-interaction snapshot. */
 export declare const inject: string[];
 /**
  * Client plugin body: mount the favicon monitor over the sessions list.

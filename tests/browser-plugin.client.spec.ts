@@ -1,18 +1,16 @@
 /**
  * ui-favicon-status plugin halves: the browser entry's favicon wiring against a
  * real cordis Context with a stubbed sessions list (fiber teardown proving
- * the favicon restore - HMR safety), the inert node entry, and the invariant
- * companion's ownership reservation.
+ * the favicon restore - HMR safety) and the inert node entry.
  */
 // @vitest-environment jsdom
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
-import type { ISessions, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ISessions, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { UiSession } from '@deepseek-ai/dsh-client-ui-session/client'
 import { apply, Config, inject } from '../src/client/index.ts'
 import { apply as applyNode } from '../src/index.ts'
-import * as TabStatusInvariant from '../src/invariant.ts'
 
 /** Minimal list row: the monitor reads only the status fields through aggregation. */
 function row(id: string, over: Partial<SessionSummary> = {}): SessionSummary {
@@ -63,7 +61,7 @@ function stubCanvas(): void {
   vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,ZmFrZQ==')
 }
 
-/** Boot the browser half over a context carrying a stubbed sessions service. */
+/** Boot the browser half over a context carrying a stubbed sessions list and pending-interaction snapshot. */
 async function bench(rows: Record<string, SessionSummary>): Promise<{
   ctx: Context
   fiber: ReturnType<Context['plugin']>
@@ -73,6 +71,9 @@ async function bench(rows: Record<string, SessionSummary>): Promise<{
   const ctx = new Context()
   const list = makeList(rows)
   ctx.provide('sessions', { list: list.list } as ISessions)
+  ctx.provide('uiSession', {
+    pendingInteractions: { getSnapshot: () => new Map(), subscribe: () => () => {} },
+  } as unknown as UiSession)
   const link = document.createElement('link')
   link.rel = 'icon'
   link.href = '/favicon.svg'
@@ -92,8 +93,8 @@ describe('ui-favicon-status browser half', () => {
     vi.restoreAllMocks()
   })
 
-  it('declares the service it binds', () => {
-    expect(inject).toEqual(['sessions'])
+  it('declares the services it binds', () => {
+    expect(inject).toEqual(['sessions', 'uiSession'])
   })
 
   it('paints the running state into the favicon link on boot', async () => {
@@ -137,19 +138,5 @@ describe('ui-favicon-status browser half', () => {
 describe('ui-favicon-status node half', () => {
   it('contributes no host behavior', () => {
     expect(applyNode).not.toThrow()
-  })
-})
-
-describe('ui-favicon-status invariant companion', () => {
-  it('reserves package ownership under its declared companion name', async () => {
-    const ctx = new Context()
-    await ctx.plugin(InvariantRegistry, { enabled: true })
-    const fiber = ctx.plugin(TabStatusInvariant)
-    await fiber.await()
-    expect(TabStatusInvariant.name).toBe('client-ui-favicon-status-invariant')
-    expect(TabStatusInvariant.inject).toEqual(['invariants'])
-    // Emitting an unrelated event proves the companion installed no audit.
-    expect(() => { (ctx.emit as (event: string) => void)('slots/changed') }).not.toThrow()
-    await fiber.dispose()
   })
 })

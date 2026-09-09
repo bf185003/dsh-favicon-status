@@ -7,10 +7,10 @@
 ## 安装
 
 ```sh
-dsh plugin --profile web add git+https://github.com/bf185003/dsh-favicon-status.git
+dsh plugin --profile web add dsh-favicon-status
 ```
 
-安装后需要重启 `dsh web`：新增插件会改变 profile 的 bundle roster，运行中的服务器只在重启后才会加载。本插件仅存在于浏览器端；node 半区只是为了插件出现在 Loader 树中。
+安装后需要重启 `dsh web`：新增插件会改变 profile 的 bundle roster，运行中的服务器只在重启后才会加载。本插件仅存在于浏览器端；node 半区只是为了插件出现在 Loader 树中。要求 dsh web 客户端为 **0.1.5-alpha.1 或更高**——插件浏览器端订阅的是该内核的会话列表投影（`ctx.sessions.list`）与有效待确认交互快照（`ctx.uiSession.pendingInteractions`）；更早的内核将这些接口放在已退役的 `@deepseek-ai/dsh-client-runtime` 包里，需要使用本插件的上一版本。
 
 ## 行为
 
@@ -41,6 +41,6 @@ None; the package never assembles or sends provider requests.
 ## Known Limitations and Deferred Work
 
 - **后台页签节流会令旋转变粗**。浏览器会节流隐藏页签里的 `setInterval`（Chrome 降为 1Hz，约 5 分钟链式定时器后进入每分钟一次的深度节流），所以页签在后台时旋转按步进而非平滑推进；基于时间的相位保证了方向与节奏正确。浏览器不支持动画 SVG favicon，这也是动画必须由 JS 驱动的原因。
-- **指示器反映的是会话列表摘要而非逐任务细节**。它聚合的是侧边栏圆点使用的同一组 `running` / `pendingInteraction` / `completed` 字段，外加监视器本地的"刚完成"过渡窗口；后台任务行与工作流阶段不会单独呈现。
+- **指示器反映的是会话列表摘要而非逐任务细节**。它聚合的是会话列表行的 `running` / `completed` 字段、`uiSession` 服务发布的生效待确认交互，外加监视器本地的"刚完成"过渡窗口；后台任务行与工作流阶段不会单独呈现。
 - **完成窗口是页签独有的提醒**。`doneVisibleMs` 会在"运行→空闲"过渡后短暂显示绿色，即使侧边栏从未置位其后台完成提醒（用户正在观看）；侧边栏自身保持原有语义。窗口只在页签保持后台时存在：页面变为可见即清除，且任何运行中的会话都会接管页签（蓝色旋转）直到安静下来。
 - **仅处理一个 favicon link**。监视器替换文档中第一个 `rel~="icon"` 链接（缺失时创建一个），卸载时恢复；多图标清单与 `apple-touch-icon` 不在处理范围内。
