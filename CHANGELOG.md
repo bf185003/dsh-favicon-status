@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-rc.7 (2026-09-12)
+
+- Republish without the UTF-8 BOM on `package.json`: the byte-order mark made
+  the manifest unreadable to the dsh profile loader. A package-manifest spec
+  now asserts the file is strict JSON with the bundle declaration.
+
 ## 0.1.0-rc.6 (2026-09-12)
 
 - Adapt to the current DSH kernel (0.1.5-alpha.1 client): the client half now
