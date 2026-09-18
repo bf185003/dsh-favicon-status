@@ -1,20 +1,19 @@
 /**
- * DOM controller for the tab indicator: subscribes to the sessions list
- * projection, swaps the document favicon for the painted ring, spins it while
+ * DOM controller for the tab indicator: subscribes to the ui-session status
+ * snapshot, swaps the document favicon for the painted ring, spins it while
  * any session runs, and restores the original icon on idle and on dispose
  * (HMR safety). Timer ticks compute the rotation from the wall clock, so a
  * throttled background tab still advances the spin on every allowed tick.
  *
  * The monitor also tracks running→idle transitions: a session that finished
- * while the user watched (so the product's background-completion reminder was
- * never armed) stays shown green for the done-visibility window, then fades
- * back to the default favicon when nothing else indicates. The window is a
- * background reminder only: returning to the page clears it immediately, and
- * while any session runs the live activity owns the tab (blue, spinning).
+ * while the user watched (so the kernel never armed its completion reminder)
+ * stays shown green for the done-visibility window, then fades back to the
+ * default favicon when nothing else indicates. The window is a background
+ * reminder only: returning to the page clears it immediately, and while any
+ * session runs the live activity owns the tab (blue, spinning).
  */
-import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
-import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { FaviconRenderer } from './favicon.ts'
 import type { TabCounts } from './status.ts'
 import { aggregateTabCounts, EMPTY_TAB_COUNTS, isEmptyTabCounts } from './status.ts'
@@ -29,12 +28,27 @@ export interface TabStatusOptions {
   doneVisibleMs?: number
 }
 
-/** The running monitor handle: re-read the list and tear down. */
+/** The running monitor handle: re-read the status source and tear down. */
 export interface TabStatusMonitor {
-  /** Re-evaluate from the latest list snapshot (initial paint included). */
+  /** Re-evaluate from the latest status snapshot (initial paint included). */
   sync(): void
   /** Stop animating and restore the original favicon. */
   dispose(): void
+}
+
+/**
+ * The observable status source the monitor subscribes to. The kernel's
+ * `UiSession.sessionStatus` satisfies it structurally, so the monitor needs no
+ * dependency on the ui-slots observable types.
+ */
+export interface TabStatusSource {
+  /** @returns the current per-session status snapshot. */
+  getSnapshot(): SessionStatusSnapshot
+  /**
+   * @param listener - called after every published snapshot change.
+   * @returns the disposer removing the listener.
+   */
+  subscribe(listener: () => void): () => void
 }
 
 const DEFAULT_SPIN_MS = 1200
@@ -46,26 +60,22 @@ function faviconLink(doc: Document): HTMLLinkElement | null {
   return doc.querySelector<HTMLLinkElement>('link[rel~="icon"]')
 }
 
-/** Sessions with an effective pending interaction, keyed by id. */
-export type PendingInteractionIds = ReadonlySet<string>
-
 /**
- * Create the tab-status monitor over one sessions list source and the pending
- * interaction snapshot. The monitor subscribes itself: either source changing
- * repaints immediately, and dispose tears both subscriptions down with the
- * favicon restore.
+ * Create the tab-status monitor over the ui-session status snapshot, which
+ * carries every session fact the indicator reads: running, the effective
+ * pending interaction, and the background-completion reminder. The monitor
+ * subscribes itself: a status change repaints immediately, and dispose tears
+ * the subscription down with the favicon restore.
  * @param doc - document whose favicon link is swapped.
- * @param list - the sessions list projection (ctx.sessions.list).
- * @param pendingInteractions - the ui-session pending-interaction snapshot
- * (`ReadonlyMap<SessionId, …>`); its keys are the sessions waiting on the user.
+ * @param sessionStatus - the ui-session status snapshot source
+ * (`ctx.uiSession.sessionStatus`).
  * @param renderer - frame painter (canvas-based in the browser, fake in specs).
  * @param options - spin/tick tuning.
  * @returns the monitor handle.
  */
 export function createTabStatusMonitor(
   doc: Document,
-  list: ObservableSnapshot<SessionListState>,
-  pendingInteractions: ObservableSnapshot<ReadonlyMap<SessionId, unknown>>,
+  sessionStatus: TabStatusSource,
   renderer: FaviconRenderer,
   options: TabStatusOptions = {},
 ): TabStatusMonitor {
@@ -129,29 +139,28 @@ export function createTabStatusMonitor(
 
   /**
    * Full re-evaluation: detect running→idle transitions, prune expired done
-   * windows, re-aggregate counts, and repaint. Runs on every list change and
-   * every animation tick, so an expiring done window restores the favicon
-   * even when the list itself has not changed.
+   * windows, re-aggregate counts, and repaint. Runs on every status change and
+   * every animation tick, so an expiring done window restores the favicon even
+   * when the snapshot itself has not changed.
    */
   const evaluate = (): void => {
-    const byId = list.getSnapshot().byId
-    const pendingIds = new Set(pendingInteractions.getSnapshot().keys())
+    const statuses = sessionStatus.getSnapshot()
     const now = Date.now()
     // Mark sessions that just stopped running: shown green briefly even when
-    // the product's background-completion reminder was never armed (the user
-    // was watching this session finish). The window is armed unconditionally,
-    // not only when `completed` is absent: the product clears `completed` when
-    // the user opens the session, and the window then keeps the green visible
-    // for its full duration instead of dropping it the moment the reminder
-    // clears.
+    // the kernel's completion reminder was never armed (the user was watching
+    // this session finish). The window is armed unconditionally, not only when
+    // `completionUnread` is absent: the kernel clears that reminder when the
+    // user acknowledges the session, and the window then keeps the green
+    // visible for its full duration instead of dropping it the moment the
+    // reminder clears.
     const runningIds = new Set<SessionId>()
-    for (const summary of Object.values(byId)) {
-      if (summary.running) runningIds.add(summary.id)
+    for (const [id, status] of statuses) {
+      if (status.running === true) runningIds.add(id)
     }
     for (const id of previousRunning) {
       if (runningIds.has(id)) continue
-      const summary: SessionSummary | undefined = byId[id]
-      if (summary !== undefined && !pendingIds.has(id)) {
+      const status = statuses.get(id)
+      if (status !== undefined && status.pendingInteraction === undefined) {
         doneUntil.set(id, now + doneVisibleMs)
       }
     }
@@ -163,7 +172,7 @@ export function createTabStatusMonitor(
     // live activity owns the tab (blue, spinning), so the window does not
     // participate in the counts until every session is quiet again.
     const recentlyDone = doneUntil.size > 0 && runningIds.size === 0 ? new Set(doneUntil.keys()) : undefined
-    counts = aggregateTabCounts(byId, pendingIds, recentlyDone)
+    counts = aggregateTabCounts(statuses, recentlyDone)
     if (isEmptyTabCounts(counts)) {
       restore()
       return
@@ -178,8 +187,7 @@ export function createTabStatusMonitor(
     timer = window.setInterval(evaluate, tickMs)
   }
 
-  const unsubscribeList = list.subscribe(evaluate)
-  const unsubscribePending = pendingInteractions.subscribe(evaluate)
+  const unsubscribeStatus = sessionStatus.subscribe(evaluate)
   // The done window is a background reminder: returning to the page (tab
   // visible) means the user sees the UI itself, so the green reminder clears
   // immediately instead of outliving its window.
@@ -188,6 +196,7 @@ export function createTabStatusMonitor(
     doneUntil.clear()
     evaluate()
   }
+
   doc.addEventListener('visibilitychange', onVisibilityChange)
   evaluate()
   // Load the document's original favicon graphic (the whale) into the ring's
@@ -207,8 +216,7 @@ export function createTabStatusMonitor(
     sync: evaluate,
     dispose() {
       disposed = true
-      unsubscribeList()
-      unsubscribePending()
+      unsubscribeStatus()
       doc.removeEventListener('visibilitychange', onVisibilityChange)
       restore()
     },

@@ -1,15 +1,17 @@
 /**
  * Pure status derivation for the browser tab indicator: one session's tab
- * state and the aggregate counts over the sessions list projection. The
- * precedence mirrors the sidebar's status dots (pending interaction > running
- * > completed reminder), so the tab never disagrees with the in-UI state.
+ * state and the aggregate counts over the ui-session status snapshot. The
+ * precedence and the facts come from the kernel's `SessionStatus` (pending
+ * interaction > running > completion reminder), so the tab never disagrees
+ * with the in-UI state.
  */
-import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionStatus, SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 
 /** One session's tab-indicator state. */
 export type TabSessionState = 'running' | 'pending' | 'done' | 'idle'
 
-/** Aggregate counts per non-idle tab state across the session list. */
+/** Aggregate counts per non-idle tab state across the session status snapshot. */
 export interface TabCounts {
   /** Sessions currently executing. */
   running: number
@@ -23,50 +25,46 @@ export interface TabCounts {
 export const EMPTY_TAB_COUNTS: TabCounts = { running: 0, pending: 0, done: 0 }
 
 /**
- * One session's tab state. A pending interaction outranks live activity,
- * which outranks the done reminders; everything else is idle (unprompted,
- * open-but-quiet, or a session the user is watching).
- * @param summary - the sessions list row.
- * @param hasPendingInteraction - the session has an effective pending
- * interaction (approval, plan review, or question) in the ui-session snapshot.
+ * One session's tab state. A pending interaction outranks live activity, which
+ * outranks the completion reminder; a session the kernel has not published a
+ * status for is idle.
+ * @param status - the session's entry in the ui-session status snapshot.
  * @param recentlyDone - monitor-tracked running→idle transition still within
- * its visibility window: shown green even when the background-completion
- * reminder is not armed (the user was watching, so the product never armed it).
+ * its visibility window: shown green even when the kernel never armed the
+ * completion reminder because the user was watching.
  * @returns the derived tab state.
  */
-export function sessionTabState(
-  summary: Pick<SessionSummary, 'running' | 'completed'>,
-  hasPendingInteraction = false,
-  recentlyDone = false,
-): TabSessionState {
-  if (hasPendingInteraction) return 'pending'
-  if (summary.running) return 'running'
-  if (summary.completed === true || recentlyDone) return 'done'
+export function sessionTabState(status: SessionStatus | undefined, recentlyDone = false): TabSessionState {
+  if (status?.pendingInteraction !== undefined) return 'pending'
+  if (status?.running === true) return 'running'
+  if (status?.completionUnread === true || recentlyDone) return 'done'
   return 'idle'
 }
 
 /**
- * Aggregate every listed session into tab counts; idle sessions do not count.
- * @param byId - the sessions list projection's id-to-row map.
- * @param pendingIds - sessions with an effective pending interaction.
- * @param recentlyDone - ids of sessions whose running→idle transition is
- * still within the monitor's visibility window (shown green).
+ * Aggregate every published session status into tab counts; idle sessions do
+ * not count. While any session runs the completion reminders are dropped from
+ * the counts: live activity owns the tab (blue, spinning), and a ring mixing
+ * blue with green would report a running task as finished.
+ * @param statuses - the ui-session status snapshot (`ctx.uiSession.sessionStatus`).
+ * @param recentlyDone - ids whose running→idle transition is still within the
+ * monitor's visibility window (shown green).
  * @returns per-state counts (never partial: a fresh object per call).
  */
 export function aggregateTabCounts(
-  byId: Readonly<Record<string, SessionSummary>>,
-  pendingIds?: ReadonlySet<string>,
-  recentlyDone?: ReadonlySet<string>,
+  statuses: SessionStatusSnapshot,
+  recentlyDone?: ReadonlySet<SessionId>,
 ): TabCounts {
   const counts: TabCounts = { running: 0, pending: 0, done: 0 }
-  for (const summary of Object.values(byId)) {
-    switch (sessionTabState(summary, pendingIds?.has(summary.id) === true, recentlyDone?.has(summary.id) === true)) {
+  for (const [id, status] of statuses) {
+    switch (sessionTabState(status, recentlyDone?.has(id) === true)) {
       case 'running': counts.running += 1; break
       case 'pending': counts.pending += 1; break
       case 'done': counts.done += 1; break
       case 'idle': break
     }
   }
+  if (counts.running > 0) counts.done = 0
   return counts
 }
 

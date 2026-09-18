@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.0-rc.8 (2026-09-12)
+
+- Adapt to the DSH 0.1.6-alpha client: the browser half subscribes to the
+  kernel's unified per-session status snapshot (`ctx.uiSession.sessionStatus`),
+  whose `SessionStatus` carries `running`, the effective `pendingInteraction`,
+  and the `completionUnread` reminder. The retired sessions-list `completed`
+  field and the separate pending-interaction snapshot are gone, so the monitor
+  reads one source instead of two.
+- Background completion reminders no longer color the ring while any session
+  runs: a ring mixing blue with green reported a running task as partly
+  finished. Live activity owns the tab (blue, spinning) until every session
+  quiets.
+
 ## 0.1.0-rc.7 (2026-09-12)
 
 - Republish without the UTF-8 BOM on `package.json`: the byte-order mark made

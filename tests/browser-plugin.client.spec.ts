@@ -1,46 +1,43 @@
 /**
  * ui-favicon-status plugin halves: the browser entry's favicon wiring against a
- * real cordis Context with a stubbed sessions list (fiber teardown proving
- * the favicon restore - HMR safety) and the inert node entry.
+ * real cordis Context with a stubbed ui-session status source (fiber teardown
+ * proving the favicon restore - HMR safety) and the inert node entry.
  */
 // @vitest-environment jsdom
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
-import type { ISessions, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { UiSession } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionStatus, SessionStatusSnapshot, UiSession } from '@deepseek-ai/dsh-client-ui-session/client'
 import { apply, Config, inject } from '../src/client/index.ts'
 import { apply as applyNode } from '../src/index.ts'
 
-/** Minimal list row: the monitor reads only the status fields through aggregation. */
-function row(id: string, over: Partial<SessionSummary> = {}): SessionSummary {
-  return {
-    id: id as SessionId,
-    displayTitle: id,
-    running: false,
-    blank: false,
-    updatedAt: 0,
-    ...over,
-  }
+/** Minimal status entry: the monitor reads only the status fields through aggregation. */
+function status(over: Partial<SessionStatus> = {}): SessionStatus {
+  return { running: false, pendingInteraction: undefined, completionUnread: false, ...over }
 }
 
-/** Manual sessions-list observable; set() notifies subscribers like the real projection. */
-function makeList(initial: Record<string, SessionSummary>): {
-  list: ISessions['list']
-  set(rows: Record<string, SessionSummary>): void
+/**
+ * Manual ui-session status snapshot source; set() notifies subscribers like the
+ * kernel's published `sessionStatus` observable.
+ */
+function makeStatus(initial: Record<string, SessionStatus>): {
+  source: { getSnapshot(): SessionStatusSnapshot; subscribe(fn: () => void): () => void }
+  set(entries: Record<string, SessionStatus>): void
 } {
-  let byId = initial
+  const toSnapshot = (entries: Record<string, SessionStatus>): SessionStatusSnapshot =>
+    new Map(Object.entries(entries).map(([id, entry]) => [id as SessionId, entry]))
+  let snapshot = toSnapshot(initial)
   const listeners = new Set<() => void>()
   return {
-    list: {
-      getSnapshot: () => ({ byId }) as never,
+    source: {
+      getSnapshot: () => snapshot,
       subscribe: (fn) => {
         listeners.add(fn)
         return () => { listeners.delete(fn) }
       },
     },
-    set(rows) {
-      byId = rows
+    set(entries) {
+      snapshot = toSnapshot(entries)
       for (const fn of listeners) fn()
     },
   }
@@ -61,19 +58,16 @@ function stubCanvas(): void {
   vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,ZmFrZQ==')
 }
 
-/** Boot the browser half over a context carrying a stubbed sessions list and pending-interaction snapshot. */
-async function bench(rows: Record<string, SessionSummary>): Promise<{
+/** Boot the browser half over a context carrying a stubbed ui-session status snapshot. */
+async function bench(entries: Record<string, SessionStatus>): Promise<{
   ctx: Context
   fiber: ReturnType<Context['plugin']>
-  list: ReturnType<typeof makeList>
+  source: ReturnType<typeof makeStatus>
   link: HTMLLinkElement
 }> {
   const ctx = new Context()
-  const list = makeList(rows)
-  ctx.provide('sessions', { list: list.list } as ISessions)
-  ctx.provide('uiSession', {
-    pendingInteractions: { getSnapshot: () => new Map(), subscribe: () => () => {} },
-  } as unknown as UiSession)
+  const status = makeStatus(entries)
+  ctx.provide('uiSession', { sessionStatus: status.source } as unknown as UiSession)
   const link = document.createElement('link')
   link.rel = 'icon'
   link.href = '/favicon.svg'
@@ -83,7 +77,7 @@ async function bench(rows: Record<string, SessionSummary>): Promise<{
     { colors: { running: '#111111', pending: '#222222', done: '#333333' }, spinMs: 1000, doneVisibleMs: 10_000 },
   )
   await fiber.await()
-  return { ctx, fiber, list, link }
+  return { ctx, fiber, source: status, link }
 }
 
 describe('ui-favicon-status browser half', () => {
@@ -93,27 +87,27 @@ describe('ui-favicon-status browser half', () => {
     vi.restoreAllMocks()
   })
 
-  it('declares the services it binds', () => {
-    expect(inject).toEqual(['sessions', 'uiSession'])
+  it('declares the service it binds', () => {
+    expect(inject).toEqual(['uiSession'])
   })
 
   it('paints the running state into the favicon link on boot', async () => {
-    const { link } = await bench({ a: row('a', { running: true }) })
+    const { link } = await bench({ a: status({ running: true }) })
     expect(link.getAttribute('href')).toMatch(/^data:image\/png;base64,/)
   })
 
-  it('repaints when the list moves between states', async () => {
-    const { list, link } = await bench({ a: row('a', { running: true }) })
-    list.set({ a: row('a', { completed: true }) })
+  it('repaints when the status snapshot moves between states', async () => {
+    const { source, link } = await bench({ a: status({ running: true }) })
+    source.set({ a: status({ completionUnread: true }) })
     expect(link.getAttribute('href')).toMatch(/^data:image\/png;base64,/)
-    // Opening the session clears the product reminder; the monitor's own done
-    // window keeps the green for its configured duration.
-    list.set({ a: row('a') })
+    // The kernel clears the reminder when the user acknowledges the session;
+    // the monitor's own done window keeps the green for its configured duration.
+    source.set({ a: status() })
     expect(link.getAttribute('href')).toMatch(/^data:image\/png;base64,/)
   })
 
   it('fiber teardown restores the original favicon (HMR safety)', async () => {
-    const { fiber, link } = await bench({ a: row('a', { running: true }) })
+    const { fiber, link } = await bench({ a: status({ running: true }) })
     expect(link.getAttribute('href')).toMatch(/^data:image\/png/)
     await fiber.dispose()
     expect(link.getAttribute('href')).toBe('/favicon.svg')

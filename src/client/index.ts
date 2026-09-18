@@ -1,10 +1,10 @@
 /**
- * Browser tab status indicator: paints the document favicon from the sessions
- * list projection — green done / amber waiting-on-user / blue running — so a
- * backgrounded dsh web tab still shows whether work finished, waits on the
- * user, or is executing. The segmented ring spins clockwise while any session
- * runs; with mixed states the ring splits proportionally (one finished and
- * one running session reads as half green, half blue).
+ * Browser tab status indicator: paints the document favicon from the
+ * ui-session status snapshot — green done / amber waiting-on-user / blue
+ * running — so a backgrounded dsh web tab still shows whether work finished,
+ * waits on the user, or is executing. The segmented ring spins clockwise while
+ * any session runs; with mixed states the ring splits proportionally (one
+ * finished and one running session reads as half green, half blue).
  *
  * The colors default to the GUI's canonical state semantics (the StateDot
  * palette: deepseek blue for ongoing, amber for user attention, green for
@@ -12,7 +12,6 @@
  */
 import z from '@deepseek-ai/schemastery'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { createCanvasRenderer, type FaviconPalette } from './favicon.ts'
 import { createTabStatusMonitor } from './monitor.ts'
@@ -47,11 +46,12 @@ export const Config: z<Config> = z.object({
   }).default(DEFAULT_PALETTE),
 })
 
-/** Required services: the sessions list projection and the pending-interaction snapshot. */
-export const inject = ['sessions', 'uiSession']
+/** Required service: the ui-session status snapshot (running, pending, completion reminder). */
+export const inject = ['uiSession']
 
 /**
- * Client plugin body: mount the favicon monitor over the sessions list.
+ * Client plugin body: mount the favicon monitor over the ui-session status
+ * snapshot.
  * @param ctx - client root context.
  * @param config - validated {@link Config}; schema defaults fill every field.
  */
@@ -65,8 +65,7 @@ export function apply(ctx: ClientContext, config: Config): void {
     const renderer = createCanvasRenderer(document, palette)
     const monitor = createTabStatusMonitor(
       document,
-      ctx.sessions.list,
-      ctx.uiSession.pendingInteractions,
+      ctx.uiSession.sessionStatus,
       renderer,
       {
         spinMs: config.spinMs,
