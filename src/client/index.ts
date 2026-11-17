@@ -47,7 +47,7 @@ export const Config: z<Config> = z.object({
 })
 
 /** Required service: the ui-session status snapshot (running, pending, completion reminder). */
-export const inject = ['uiSession']
+export const inject = ['uiSession', 'uiSession.sessionStatus']
 
 /**
  * Client plugin body: mount the favicon monitor over the ui-session status

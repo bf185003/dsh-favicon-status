@@ -5,14 +5,14 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionStatus, SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import {
   aggregateTabCounts, EMPTY_TAB_COUNTS, isEmptyTabCounts, sessionTabState,
 } from '../src/client/status.ts'
+import type { SessionStatus, SessionStatusSnapshot } from '../src/client/status.ts'
 
 /** Minimal status entry: derivation reads only running/pendingInteraction/completionUnread. */
 function status(over: Partial<SessionStatus> = {}): SessionStatus {
-  return { running: false, pendingInteraction: undefined, completionUnread: false, ...over }
+  return { running: false, pendingInteraction: undefined, completionUnread: false, completionFailed: false, ...over }
 }
 
 /**

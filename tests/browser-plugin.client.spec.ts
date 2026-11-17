@@ -7,13 +7,13 @@
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionStatus, SessionStatusSnapshot, UiSession } from '@deepseek-ai/dsh-client-ui-session/client'
 import { apply, Config, inject } from '../src/client/index.ts'
 import { apply as applyNode } from '../src/index.ts'
+import type { SessionStatus, SessionStatusSnapshot } from '../src/client/status.ts'
 
 /** Minimal status entry: the monitor reads only the status fields through aggregation. */
 function status(over: Partial<SessionStatus> = {}): SessionStatus {
-  return { running: false, pendingInteraction: undefined, completionUnread: false, ...over }
+  return { running: false, pendingInteraction: undefined, completionUnread: false, completionFailed: false, ...over }
 }
 
 /**
@@ -67,7 +67,8 @@ async function bench(entries: Record<string, SessionStatus>): Promise<{
 }> {
   const ctx = new Context()
   const status = makeStatus(entries)
-  ctx.provide('uiSession', { sessionStatus: status.source } as unknown as UiSession)
+  ctx.provide('uiSession', { sessionStatus: status.source } as never)
+  ctx.provide('uiSession.sessionStatus', status.source as never)
   const link = document.createElement('link')
   link.rel = 'icon'
   link.href = '/favicon.svg'
@@ -88,7 +89,7 @@ describe('ui-favicon-status browser half', () => {
   })
 
   it('declares the service it binds', () => {
-    expect(inject).toEqual(['uiSession'])
+    expect(inject).toEqual(['uiSession', 'uiSession.sessionStatus'])
   })
 
   it('paints the running state into the favicon link on boot', async () => {

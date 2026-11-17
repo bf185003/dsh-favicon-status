@@ -6,14 +6,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionStatus, SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { FaviconRenderer } from '../src/client/favicon.ts'
 import { createTabStatusMonitor, type TabStatusMonitor, type TabStatusSource } from '../src/client/monitor.ts'
-import type { TabCounts } from '../src/client/status.ts'
+import type { SessionStatus, SessionStatusSnapshot, TabCounts } from '../src/client/status.ts'
 
 /** Minimal status entry: the monitor reads only the status fields through aggregation. */
 function status(over: Partial<SessionStatus> = {}): SessionStatus {
-  return { running: false, pendingInteraction: undefined, completionUnread: false, ...over }
+  return { running: false, pendingInteraction: undefined, completionUnread: false, completionFailed: false, ...over }
 }
 
 /**

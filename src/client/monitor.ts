@@ -13,9 +13,8 @@
  * session runs the live activity owns the tab (blue, spinning).
  */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { FaviconRenderer } from './favicon.ts'
-import type { TabCounts } from './status.ts'
+import type { SessionStatusSnapshot, TabCounts } from './status.ts'
 import { aggregateTabCounts, EMPTY_TAB_COUNTS, isEmptyTabCounts } from './status.ts'
 
 /** Monitor tuning; every field optional so the defaults stay deployment-tunable through Config. */

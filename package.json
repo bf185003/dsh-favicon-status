@@ -1,7 +1,7 @@
 {
   "name": "dsh-favicon-status",
   "description": "Browser tab status indicator: paints the document favicon from the ui-session status snapshot (blue running / amber waiting / green done, spinning while work executes) so a backgrounded dsh web tab still shows task state",
-  "version": "0.1.0-rc.8",
+  "version": "0.1.0-rc.9",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
@@ -31,6 +31,11 @@
   },
   "dsh": {
     "client": {
+      "inject": [
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-session-status"
+      ],
       "platform": "web"
     },
     "bundle": {

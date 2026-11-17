@@ -12,7 +12,7 @@
 dsh plugin --profile web add dsh-favicon-status
 ```
 
-安装后需要重启 `dsh web`：新增插件会改变 profile 的 bundle roster，运行中的服务器只在重启后才会加载。本插件仅存在于浏览器端；node 半区只是为了插件出现在 Loader 树中。要求 dsh web 客户端为 **0.1.6-alpha.2 或更高**——插件浏览器端订阅的是内核的逐会话状态快照（`ctx.uiSession.sessionStatus`），它在一个 map 里同时携带 `running`、生效的 `pendingInteraction` 与 `completionUnread` 提醒。更早的内核把这些事实拆在会话列表与独立的待确认快照里（0.1.5-alpha），或放在已退役的 `@deepseek-ai/dsh-client-runtime` 包里，需要使用本插件的早期版本。
+安装后需要重启 `dsh web`：新增插件会改变 profile 的 bundle roster，运行中的服务器只在重启后才会加载。本插件仅存在于浏览器端；node 半区只是为了插件出现在 Loader 树中。要求 dsh web 客户端为 **0.2.2-rc.3 或更高**——插件浏览器端会等待客户端 session-status 插件提供的 `uiSession.sessionStatus`，再订阅其中逐会话的 `running`、`pendingInteraction` 与 `completionUnread` 事实。更早的客户端从 `uiSession` 自身提供状态表，需要使用本插件的早期版本。
 
 ## 行为
 

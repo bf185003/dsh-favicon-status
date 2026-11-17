@@ -6,7 +6,17 @@
  * with the in-UI state.
  */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionStatus, SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
+
+/** One session's status facts needed by the favicon indicator. */
+export interface SessionStatus {
+  readonly running: boolean | undefined
+  readonly pendingInteraction: unknown | undefined
+  readonly completionUnread: boolean
+  readonly completionFailed: boolean
+}
+
+/** Session statuses keyed by identity. */
+export type SessionStatusSnapshot = ReadonlyMap<SessionId, SessionStatus>
 
 /** One session's tab-indicator state. */
 export type TabSessionState = 'running' | 'pending' | 'done' | 'idle'

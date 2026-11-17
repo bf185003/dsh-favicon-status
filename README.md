@@ -12,7 +12,7 @@ The favicon of a backgrounded dsh web tab reports what the workspace is doing: a
 dsh plugin --profile web add dsh-favicon-status
 ```
 
-Restart `dsh web` afterwards: adding the plugin changes the profile's bundle roster, which the running server only picks up on restart. The plugin is browser-only; the node half exists solely so the plugin appears in the Loader tree. Requires the DSH web client at **0.1.6-alpha.2 or later** — the client half subscribes to the kernel's per-session status snapshot (`ctx.uiSession.sessionStatus`), which carries `running`, the effective `pendingInteraction`, and the `completionUnread` reminder in one map. Earlier kernels split those facts across the sessions list and a separate pending-interaction snapshot (0.1.5-alpha), or shipped them under the retired `@deepseek-ai/dsh-client-runtime` package, and need an earlier plugin release.
+Restart `dsh web` afterwards: adding the plugin changes the profile's bundle roster, which the running server only picks up on restart. The plugin is browser-only; the node half exists solely so the plugin appears in the Loader tree. Requires the DSH web client at **0.2.2-rc.3 or later** — the client half waits for `uiSession.sessionStatus`, supplied by the client session-status plugin, then subscribes to its per-session `running`, `pendingInteraction`, and `completionUnread` facts. Earlier clients provide that status table from `uiSession` itself and need an earlier plugin release.
 
 ## Behavior
 
